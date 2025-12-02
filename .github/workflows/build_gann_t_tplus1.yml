@@ -36,9 +36,11 @@ jobs:
             pip install numpy pandas
           fi
 
-      - name: Build Gann T/T+1 HTML reports
-        run: |
-          python scripts/build_gann_T_Tplus1.py
+     - name: Build Gann T/T+1 HTML reports
+       run: |
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python scripts/build_gann_T_Tplus1.py
+
 
       - name: Commit and push docs (if changed)
         run: |
