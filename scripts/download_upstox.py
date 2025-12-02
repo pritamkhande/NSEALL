@@ -12,11 +12,11 @@ from requests.exceptions import RequestException
 # Repo root: one level up from this script
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Input list of Nifty500 stocks (ISIN + TckrSymb)
-NIFTY500_LIST_FILE = os.path.join(REPO_ROOT, "data", "nifty500_list.csv")
+# Input list of all NSE stocks (ISIN + TckrSymb)
+NSE_LIST_FILE = os.path.join(REPO_ROOT, "NSE_List", "BhavCopy.csv")
 
 # Root folder for EOD output (subfolders A, B, ..., 0-9)
-EOD_ROOT = os.path.join(REPO_ROOT, "data", "eod")
+EOD_ROOT = os.path.join(REPO_ROOT, "EOD")
 
 BASE_URL_V3 = "https://api.upstox.com/v3"
 
@@ -28,9 +28,8 @@ MAX_RETRIES = 3
 # Global earliest date for the very first run
 GLOBAL_START_DATE = "2000-01-01"
 
-# Explicit mapping for key NSE indices we want
+# Explicit mapping for key NSE indices if they appear in BhavCopy
 INDEX_INSTRUMENT_KEYS = {
-    # Adjust left side to match your TckrSymb values in nifty500_list.csv
     "Nifty": "NSE_INDEX|Nifty 50",
     "Nifty 50": "NSE_INDEX|Nifty 50",
     "Nifty Bank": "NSE_INDEX|Nifty Bank",
@@ -49,14 +48,14 @@ def ensure_dir(path: str) -> None:
         os.makedirs(path)
 
 
-def load_nifty500_list(path: str) -> pd.DataFrame:
+def load_nse_list(path: str) -> pd.DataFrame:
     """
-    Load ISIN and ticker symbol from nifty500_list.csv, keeping index rows too.
+    Load ISIN and ticker symbol from BhavCopy.csv.
     ISIN may be blank for indices like 'Nifty Bank', 'Nifty IT', etc.
     """
     df = pd.read_csv(path)
     if "ISIN" not in df.columns or "TckrSymb" not in df.columns:
-        raise ValueError("nifty500_list.csv must have columns 'ISIN' and 'TckrSymb'")
+        raise ValueError("BhavCopy.csv must have columns 'ISIN' and 'TckrSymb'")
 
     # Keep rows where TckrSymb is present; ISIN can be empty
     df = df[["ISIN", "TckrSymb"]]
@@ -72,7 +71,7 @@ def load_nifty500_list(path: str) -> pd.DataFrame:
 def get_symbol_eod_path(symbol: str) -> str:
     """
     Return full path for symbol's EOD CSV, grouped by first letter
-    e.g. data/eod/T/TCS_EOD.csv, data/eod/2/20MICRONS_EOD.csv, etc.
+    e.g. EOD/T/TCS_EOD.csv, EOD/2/20MICRONS_EOD.csv, etc.
     """
     first_char = symbol[0].upper() if symbol else "_"
     if not first_char.isalpha():
@@ -237,18 +236,16 @@ def merge_with_existing(symbol: str, df_new: pd.DataFrame) -> pd.DataFrame:
         if col not in df_new.columns:
             df_new[col] = pd.NA
 
-    # Filter out empty frames before concat (avoids FutureWarning)
+    # Filter out empty frames before concat
     frames = []
     if df_old is not None and not df_old.empty:
         frames.append(df_old)
     if df_new is not None and not df_new.empty:
         frames.append(df_new)
 
-    # If nothing to merge
     if not frames:
         return pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close", "Volume"])
 
-    # Merge cleanly
     df = pd.concat(frames, ignore_index=True)
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.drop_duplicates(subset=["Date"]).sort_values("Date")
@@ -278,21 +275,21 @@ def main() -> None:
     today_str = datetime.utcnow().strftime("%Y-%m-%d")
     print("Today (UTC):", today_str)
 
-    nifty_df = load_nifty500_list(NIFTY500_LIST_FILE)
-    print(f"Total rows in nifty500_list: {len(nifty_df)}")
+    nse_df = load_nse_list(NSE_LIST_FILE)
+    print(f"Total rows in BhavCopy list: {len(nse_df)}")
 
     ensure_dir(EOD_ROOT)
 
-    for idx, row in nifty_df.iterrows():
+    for idx, row in nse_df.iterrows():
         isin = row["ISIN"]
         symbol = row["TckrSymb"]
 
         instrument_key = get_instrument_key_for_row(isin, symbol)
         if not instrument_key:
-            print(f"\n[{idx+1}/{len(nifty_df)}] {symbol}: Skipping (no valid instrument_key mapping)")
+            print(f"\n[{idx+1}/{len(nse_df)}] {symbol}: Skipping (no valid instrument_key mapping)")
             continue
 
-        print(f"\n[{idx+1}/{len(nifty_df)}] {symbol} ({instrument_key})")
+        print(f"\n[{idx+1}/{len(nse_df)}] {symbol} ({instrument_key})")
 
         # Determine from_date based on existing file
         last_date = get_existing_last_date(symbol)
@@ -321,4 +318,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
