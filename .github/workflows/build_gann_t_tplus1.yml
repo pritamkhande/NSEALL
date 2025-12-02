@@ -1,10 +1,10 @@
 name: Build Gann T/T+1 Reports
 
 on:
-  # run manually
+  # Manual trigger from Actions tab
   workflow_dispatch:
 
-  # or daily after market close (e.g. 17:30 IST ≈ 12:00 UTC)
+  # Schedule: Mon–Fri at 12:00 UTC (~17:30 IST)
   schedule:
     - cron: "0 12 * * 1-5"
 
@@ -36,11 +36,10 @@ jobs:
             pip install numpy pandas
           fi
 
-     - name: Build Gann T/T+1 HTML reports
-       run: |
-        export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python scripts/build_gann_T_Tplus1.py
-
+      - name: Build Gann T/T+1 HTML reports
+        run: |
+          export PYTHONPATH="$PYTHONPATH:$(pwd)"
+          python scripts/build_gann_T_Tplus1.py
 
       - name: Commit and push docs (if changed)
         run: |
