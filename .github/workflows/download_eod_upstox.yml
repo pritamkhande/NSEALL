@@ -1,0 +1,53 @@
+name: Download EOD data from Upstox
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 10 * * 1-5"   # Mon–Fri 10:30 UTC ≈ 16:00 IST
+
+permissions:
+  contents: write
+
+jobs:
+  download-eod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install requests pandas python-dateutil
+          fi
+
+      - name: Run EOD downloader
+        env:
+          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+        run: |
+          mkdir -p EOD
+          python scripts/download_upstox.py
+
+      - name: Commit and push changes (if any)
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add EOD
+            git commit -m "Update EOD data [skip ci]" || echo "Nothing to commit"
+            git push origin main
+          else
+            echo "No changes to commit."
+          fi
